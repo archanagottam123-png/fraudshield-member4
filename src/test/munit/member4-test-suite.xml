@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit" xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools  http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+	<munit:config name="member4-test-suite.xml" />
+	<munit:test name="member4-test-suite-member4-process-eventFlowTest" doc:id="3815aa9f-1c87-4aba-b032-fc7122d5ba84" description="Test">
+		<munit:behavior >
+			<munit-tools:mock-when doc:name="Mock when" doc:id="1a5c89b3-4954-48cf-894a-f6eb130199ef" processor="db:insert">
+				<munit-tools:with-attributes >
+					<munit-tools:with-attribute whereValue="8a7af739-cb20-495c-854f-2650798428a1" attributeName="doc:id" />
+				</munit-tools:with-attributes>
+			</munit-tools:mock-when>
+			<munit-tools:mock-when doc:name="Mock when" doc:id="3d464824-96b8-486e-8f78-e76ac1e995dd" processor="db:select">
+				<munit-tools:with-attributes >
+					<munit-tools:with-attribute whereValue="d6e06a48-b1f5-46e6-92b2-63694ad5cdba" attributeName="doc:id" />
+				</munit-tools:with-attributes>
+			</munit-tools:mock-when>
+			<munit-tools:mock-when doc:name="Mock when" doc:id="ecf1da12-d57b-4b1c-abeb-8ffd471834a7" processor="db:insert">
+				<munit-tools:with-attributes >
+					<munit-tools:with-attribute whereValue="0bb5618b-e63f-45ad-ad53-e0e9af898b93" attributeName="doc:id" />
+				</munit-tools:with-attributes>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution >
+			<munit:set-event doc:name="Set Event" doc:id="0d3d4309-9490-4b56-b53b-2282ae90b3be" >
+				<munit:payload value='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;  queueName: "fraud-high-priority",&#10;  messagePriority: 10,&#10;  event: {&#10;    eventId: "PAY-EVT-2026-884512",&#10;    transactionId: "TXN-99120455",&#10;    cardToken: "TKN-4d9a77e1c0",&#10;    maskedCardNumber: "XXXXXXXXXXXX4417",&#10;    amount: 248500.00,&#10;    currency: "INR",&#10;    customerId: "CUST-77219",&#10;    merchantId: "MER-5581",&#10;    merchantCountry: "SG",&#10;    geoCountry: "SG",&#10;    riskScore: 82,&#10;    riskBand: "HIGH",&#10;    ruleHits: [&#10;      {&#10;        ruleCode: "AMOUNT_HIGH",&#10;        ruleName: "Transaction amount above configured limit",&#10;        ruleWeight: 30&#10;      }&#10;    ],&#10;    correlationId: "CORR-001"&#10;  }&#10;}]' mediaType="application/json" />
+			</munit:set-event>
+			<flow-ref doc:name="Flow-ref to member4-process-eventFlow" doc:id="83828e62-18ac-470a-bdc9-ffc0c6e41c61" name="member4-process-eventFlow"/>
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="Assert that" doc:id="66db87e6-a674-48e1-8a06-583036610a2e" expression="#[payload.decision]" is='#[MunitTools::equalTo("BLOCK")]'/>
+		</munit:validation>
+	</munit:test>
+
+
+</mule>

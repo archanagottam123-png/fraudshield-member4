@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:db="http://www.mulesoft.org/schema/mule/db" xsi:schemaLocation="
+      http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- CONFIG PROPERTIES -->
+    <configuration-properties
+        file="config.properties"
+        doc:name="Configuration Properties"/>
+
+
+    <!-- HTTP CONFIG -->
+    <http:listener-config
+        name="HTTP_Listener_config"
+        doc:name="HTTP Listener Config">
+
+        <http:listener-connection
+            host="0.0.0.0"
+            port="8081"/>
+
+    </http:listener-config>
+
+
+    <!-- DATABASE CONFIG -->
+    <db:config
+        name="Database_Config"
+        doc:name="Database Config">
+
+        <db:generic-connection
+            url="jdbc:mysql://${db.host}:${db.port}/${db.name}?useSSL=false&amp;allowPublicKeyRetrieval=true&amp;serverTimezone=UTC"
+            driverClassName="com.mysql.cj.jdbc.Driver"
+            user="${db.user}"
+            password="${db.password}"/>
+
+    </db:config>
+
+
+    <!-- EXISTING MYSQL TEST FLOW -->
+    <db:config name="Database_Config1" doc:name="Database Config" doc:id="52a633db-50df-4cfc-90cc-83f49adcfd9d" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="vtu25053" database="fraudshield_db" />
+	</db:config>
+	<flow name="fraud-detection-consumerFlow">
+
+        <http:listener
+            config-ref="HTTP_Listener_config"
+            path="/member4/test"
+            allowedMethods="GET"
+            doc:name="Test Endpoint"/>
+
+        <db:select
+            config-ref="Database_Config"
+            doc:name="Test MySQL Connection">
+
+            <db:sql><![CDATA[
+                SELECT 1 AS connection_status
+            ]]></db:sql>
+
+        </db:select>
+
+        <set-payload
+            value="MySQL connection test successful"
+            doc:name="Success Response"/>
+
+    </flow>
+
+
+    <!-- MEMBER 4 EVENT FLOW -->
+	<flow name="member4-process-eventFlow">
+
+        <http:listener
+            config-ref="HTTP_Listener_config"
+            path="/member4/events"
+            allowedMethods="POST"
+            doc:name="Member4 Events Listener"/>
+		<ee:transform doc:name="Transform Message" doc:id="895f177a-1216-4536-8d5d-d6cd267c1e2a" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+var event = payload.event
+---
+{
+    eventId: event.eventId,
+    transactionId: event.transactionId,
+    eventTimestamp: event.eventTimestamp default null,
+    customerId: event.customerId,
+    customerName: null,
+    customerRiskProfile: null,
+    cardToken: event.cardToken,
+    maskedCardNumber: event.maskedCardNumber,
+    amount: event.amount,
+    currency: event.currency,
+    merchantId: event.merchantId,
+    merchantName: null,
+    merchantCountry: event.merchantCountry,
+    geoCountry: event.geoCountry,
+    riskScore: event.riskScore,
+    riskBand: event.riskBand,
+    decision:
+        if (event.riskBand == "HIGH") "BLOCK"
+        else if (event.riskBand == "MEDIUM") "REVIEW"
+        else if (event.riskBand == "LOW") "APPROVE"
+        else "REVIEW",
+    alertStatus: "PENDING",
+    ruleHits: event.ruleHits default [],
+    correlationId: event.correlationId
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value="#[payload]" doc:name="Finalized Event" doc:id="571d9c2c-56fe-4e03-a7ac-393f31dba11f" variableName="finalizedEvent"/>
+		<db:insert doc:name="Insert" doc:id="8a7af739-cb20-495c-854f-2650798428a1" config-ref="Database_Config1">
+			<db:sql ><![CDATA[INSERT INTO fraud_events (
+    event_id,
+    transaction_id,
+    event_timestamp,
+    customer_id,
+    card_token,
+    masked_card,
+    amount,
+    currency,
+    merchant_id,
+    merchant_country,
+    geo_country,
+    risk_score,
+    risk_band,
+    decision,
+    alert_status,
+    correlation_id
+)
+VALUES (
+    :eventId,
+    :transactionId,
+    :eventTimestamp,
+    :customerId,
+    :cardToken,
+    :maskedCard,
+    :amount,
+    :currency,
+    :merchantId,
+    :merchantCountry,
+    :geoCountry,
+    :riskScore,
+    :riskBand,
+    :decision,
+    :alertStatus,
+    :correlationId
+)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    eventId: vars.finalizedEvent.eventId,
+    transactionId: vars.finalizedEvent.transactionId,
+    eventTimestamp: vars.finalizedEvent.eventTimestamp,
+    customerId: vars.finalizedEvent.customerId,
+    cardToken: vars.finalizedEvent.cardToken,
+    maskedCard: vars.finalizedEvent.maskedCardNumber,
+    amount: vars.finalizedEvent.amount,
+    currency: vars.finalizedEvent.currency,
+    merchantId: vars.finalizedEvent.merchantId,
+    merchantCountry: vars.finalizedEvent.merchantCountry,
+    geoCountry: vars.finalizedEvent.geoCountry,
+    riskScore: vars.finalizedEvent.riskScore,
+    riskBand: vars.finalizedEvent.riskBand,
+    decision: vars.finalizedEvent.decision,
+    alertStatus: vars.finalizedEvent.alertStatus,
+    correlationId: vars.finalizedEvent.correlationId
+}]]]></db:input-parameters>
+		</db:insert>
+		<db:select doc:name="Select" doc:id="d6e06a48-b1f5-46e6-92b2-63694ad5cdba" config-ref="Database_Config1">
+			<db:sql ><![CDATA[SELECT *
+FROM fraud_events
+WHERE event_id = :eventId;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    eventId: vars.finalizedEvent.eventId
+}]]]></db:input-parameters>
+		</db:select>
+		<foreach collection="#[vars.finalizedEvent.ruleHits]" doc:name="For Each" doc:id="751f7375-400d-4964-a61b-eee56c5d21b6" >
+			<db:insert doc:name="Insert" doc:id="0bb5618b-e63f-45ad-ad53-e0e9af898b93" config-ref="Database_Config1">
+				<db:sql ><![CDATA[INSERT INTO fraud_rule_hits (
+    event_id,
+    rule_code,
+    rule_name,
+    rule_weight
+)
+VALUES (
+    :eventId,
+    :ruleCode,
+    :ruleName,
+    :ruleWeight
+)]]></db:sql>
+				<db:input-parameters ><![CDATA[#[{
+    eventId: vars.finalizedEvent.eventId,
+    ruleCode: payload.ruleCode,
+    ruleName: payload.ruleName,
+    ruleWeight: payload.ruleWeight
+}]]]></db:input-parameters>
+			</db:insert>
+		</foreach>
+		<set-payload value="#[vars.finalizedEvent]" doc:name="Final Response" doc:id="e6cf42e1-35d6-49f7-af9f-f7ea91423dd0" />
+
+    </flow>
+
+</mule>
